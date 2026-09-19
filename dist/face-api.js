@@ -1082,23 +1082,23 @@
   }(FaceLandmarks));
 
   var FaceMatch = /** @class */ (function () {
-      function FaceMatch(label, distance) {
+      function FaceMatch(label, similarity) {
           this._label = label;
-          this._distance = distance;
+          this._similarity = similarity;
       }
       Object.defineProperty(FaceMatch.prototype, "label", {
           get: function () { return this._label; },
           enumerable: false,
           configurable: true
       });
-      Object.defineProperty(FaceMatch.prototype, "distance", {
-          get: function () { return this._distance; },
+      Object.defineProperty(FaceMatch.prototype, "similarity", {
+          get: function () { return this._similarity; },
           enumerable: false,
           configurable: true
       });
-      FaceMatch.prototype.toString = function (withDistance) {
-          if (withDistance === void 0) { withDistance = true; }
-          return "" + this.label + (withDistance ? " (" + round(this.distance) + ")" : '');
+      FaceMatch.prototype.toString = function (withSimilarity) {
+          if (withSimilarity === void 0) { withSimilarity = true; }
+          return "" + this.label + (withSimilarity ? " (" + round(this.similarity) + ")" : '');
       };
       return FaceMatch;
   }());
@@ -6323,20 +6323,32 @@
   }
   var allFaces = allFacesSsdMobilenetv1;
 
-  function euclideanDistance(arr1, arr2) {
-      if (arr1.length !== arr2.length)
-          throw new Error('euclideanDistance: arr1.length !== arr2.length');
-      var desc1 = Array.from(arr1);
-      var desc2 = Array.from(arr2);
-      return Math.sqrt(desc1
-          .map(function (val, i) { return val - desc2[i]; })
-          .reduce(function (res, diff) { return res + Math.pow(diff, 2); }, 0));
+  function cosineSimilarity(descriptor1, descriptor2) {
+      var _a, _b;
+      if (descriptor1.length !== descriptor2.length) {
+          throw new Error("Descriptors must have the same length");
+      }
+      var dotProduct = 0.0;
+      var norm1 = 0.0;
+      var norm2 = 0.0;
+      for (var i = 0; i < descriptor1.length; i++) {
+          var value1 = (_a = descriptor1[i]) !== null && _a !== void 0 ? _a : 0;
+          var value2 = (_b = descriptor2[i]) !== null && _b !== void 0 ? _b : 0;
+          dotProduct += value1 * value2;
+          norm1 += Math.pow(value1, 2);
+          norm2 += Math.pow(value2, 2);
+      }
+      var magnitude = Math.sqrt(norm1) * Math.sqrt(norm2);
+      if (magnitude === 0) {
+          return 0;
+      }
+      return dotProduct / magnitude;
   }
 
   var FaceMatcher = /** @class */ (function () {
-      function FaceMatcher(inputs, distanceThreshold) {
-          if (distanceThreshold === void 0) { distanceThreshold = 0.6; }
-          this._distanceThreshold = distanceThreshold;
+      function FaceMatcher(inputs, similarityThreshold) {
+          if (similarityThreshold === void 0) { similarityThreshold = 0.6; }
+          this._similarityThreshold = similarityThreshold;
           var inputArray = Array.isArray(inputs) ? inputs : [inputs];
           if (!inputArray.length) {
               throw new Error("FaceRecognizer.constructor - expected atleast one input");
@@ -6351,52 +6363,60 @@
                   return new LabeledFaceDescriptors(createUniqueLabel(), [desc]);
               }
               if (desc.descriptor && desc.descriptor instanceof Float32Array) {
-                  return new LabeledFaceDescriptors(createUniqueLabel(), [desc.descriptor]);
+                  return new LabeledFaceDescriptors(createUniqueLabel(), [
+                      desc.descriptor,
+                  ]);
               }
               throw new Error("FaceRecognizer.constructor - expected inputs to be of type LabeledFaceDescriptors | WithFaceDescriptor<any> | Float32Array | Array<LabeledFaceDescriptors | WithFaceDescriptor<any> | Float32Array>");
           });
       }
       Object.defineProperty(FaceMatcher.prototype, "labeledDescriptors", {
-          get: function () { return this._labeledDescriptors; },
+          get: function () {
+              return this._labeledDescriptors;
+          },
           enumerable: false,
           configurable: true
       });
-      Object.defineProperty(FaceMatcher.prototype, "distanceThreshold", {
-          get: function () { return this._distanceThreshold; },
+      Object.defineProperty(FaceMatcher.prototype, "similarityThreshold", {
+          get: function () {
+              return this._similarityThreshold;
+          },
           enumerable: false,
           configurable: true
       });
-      FaceMatcher.prototype.computeMeanDistance = function (queryDescriptor, descriptors) {
-          return descriptors
-              .map(function (d) { return euclideanDistance(d, queryDescriptor); })
-              .reduce(function (d1, d2) { return d1 + d2; }, 0)
-              / (descriptors.length || 1);
+      FaceMatcher.prototype.computeMeanSimilarity = function (queryDescriptor, descriptors) {
+          return (descriptors
+              .map(function (d) { return cosineSimilarity(d, queryDescriptor); })
+              .reduce(function (s1, s2) { return s1 + s2; }, 0) / (descriptors.length || 1));
       };
       FaceMatcher.prototype.matchDescriptor = function (queryDescriptor) {
           var _this = this;
           return this.labeledDescriptors
               .map(function (_a) {
               var descriptors = _a.descriptors, label = _a.label;
-              return new FaceMatch(label, _this.computeMeanDistance(queryDescriptor, descriptors));
+              return new FaceMatch(label, _this.computeMeanSimilarity(queryDescriptor, descriptors));
           })
-              .reduce(function (best, curr) { return best.distance < curr.distance ? best : curr; });
+              .reduce(function (best, curr) {
+              return best.similarity > curr.similarity ? best : curr;
+          });
       };
       FaceMatcher.prototype.findBestMatch = function (queryDescriptor) {
           var bestMatch = this.matchDescriptor(queryDescriptor);
-          return bestMatch.distance < this.distanceThreshold
+          return bestMatch.similarity >= this.similarityThreshold
               ? bestMatch
-              : new FaceMatch('unknown', bestMatch.distance);
+              : new FaceMatch("unknown", bestMatch.similarity);
       };
       FaceMatcher.prototype.toJSON = function () {
           return {
-              distanceThreshold: this.distanceThreshold,
-              labeledDescriptors: this.labeledDescriptors.map(function (ld) { return ld.toJSON(); })
+              similarityThreshold: this.similarityThreshold,
+              labeledDescriptors: this.labeledDescriptors.map(function (ld) { return ld.toJSON(); }),
           };
       };
       FaceMatcher.fromJSON = function (json) {
-          var labeledDescriptors = json.labeledDescriptors
-              .map(function (ld) { return LabeledFaceDescriptors.fromJSON(ld); });
-          return new FaceMatcher(labeledDescriptors, json.distanceThreshold);
+          var labeledDescriptors = json.labeledDescriptors.map(function (ld) {
+              return LabeledFaceDescriptors.fromJSON(ld);
+          });
+          return new FaceMatcher(labeledDescriptors, json.similarityThreshold);
       };
       return FaceMatcher;
   }());
@@ -6411,6 +6431,16 @@
       var net = new TinyFaceDetector();
       net.extractWeights(weights);
       return net;
+  }
+
+  function euclideanDistance(arr1, arr2) {
+      if (arr1.length !== arr2.length)
+          throw new Error('euclideanDistance: arr1.length !== arr2.length');
+      var desc1 = Array.from(arr1);
+      var desc2 = Array.from(arr2);
+      return Math.sqrt(desc1
+          .map(function (val, i) { return val - desc2[i]; })
+          .reduce(function (res, diff) { return res + Math.pow(diff, 2); }, 0));
   }
 
   function resizeResults(results, dimensions) {
@@ -6486,6 +6516,7 @@
   exports.awaitMediaLoaded = awaitMediaLoaded;
   exports.bufferToImage = bufferToImage;
   exports.computeFaceDescriptor = computeFaceDescriptor;
+  exports.cosineSimilarity = cosineSimilarity;
   exports.createCanvas = createCanvas;
   exports.createCanvasFromMedia = createCanvasFromMedia;
   exports.createFaceDetectionNet = createFaceDetectionNet;
