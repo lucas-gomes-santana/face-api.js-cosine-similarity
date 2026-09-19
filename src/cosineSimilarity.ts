@@ -1,4 +1,4 @@
-function cosineSimilarity(
+export function cosineSimilarity(
   descriptor1: number[] | Float32Array,
   descriptor2: number[] | Float32Array,
 ) {
@@ -26,5 +26,3 @@ function cosineSimilarity(
 
   return dotProduct / magnitude;
 }
-
-export default cosineSimilarity;

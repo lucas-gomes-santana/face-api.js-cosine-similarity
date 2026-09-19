@@ -2,22 +2,22 @@ import { round } from '../utils';
 
 export interface IFaceMatch {
   label: string
-  distance: number
+  similarity: number
 }
 
 export class FaceMatch implements IFaceMatch {
   private _label: string
-  private _distance: number
+  private _similarity: number
 
-  constructor(label: string, distance: number) {
+  constructor(label: string, similarity: number) {
     this._label = label
-    this._distance = distance
+    this._similarity = similarity
   }
 
   public get label(): string { return this._label }
-  public get distance(): number { return this._distance }
+  public get similarity(): number { return this._similarity }
 
-  public toString(withDistance: boolean = true): string {
-    return `${this.label}${withDistance ? ` (${round(this.distance)})` : ''}`
+  public toString(withSimilarity: boolean = true): string {
+    return `${this.label}${withSimilarity ? ` (${round(this.similarity)})` : ''}`
   }
 }
