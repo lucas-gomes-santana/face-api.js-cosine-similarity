@@ -1,4 +1,4 @@
-import cosineSimilarity from "../../../src/cosineSimilarity";
+import { cosineSimilarity } from "../../../src/cosineSimilarity";
 
 describe("cosineSimilarity", () => {
   it("should be 1.0 for identical vectors", () => {
