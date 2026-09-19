@@ -1,10 +1,8 @@
-import { fetchJson } from '../../../src';
+import { fetchJson } from "../../../src";
 
-describe('fetchJson', () => {
-
-  it('fetches json', async () => {
-    const url = 'test/data/boxes.json'
-    expect(async () => await fetchJson(url)).not.toThrow()
-  })
-
-})
+describe("fetchJson", () => {
+  it("fetches json", async () => {
+    const url = "base/test/data/boxes.json";
+    expect(async () => await fetchJson(url)).not.toThrow();
+  });
+});
