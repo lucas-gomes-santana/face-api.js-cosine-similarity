@@ -6347,7 +6347,7 @@
 
   var FaceMatcher = /** @class */ (function () {
       function FaceMatcher(inputs, similarityThreshold) {
-          if (similarityThreshold === void 0) { similarityThreshold = 0.6; }
+          if (similarityThreshold === void 0) { similarityThreshold = 0.94; }
           this._similarityThreshold = similarityThreshold;
           var inputArray = Array.isArray(inputs) ? inputs : [inputs];
           if (!inputArray.length) {

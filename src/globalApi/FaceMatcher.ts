@@ -13,7 +13,7 @@ export class FaceMatcher {
       | WithFaceDescriptor<any>
       | Float32Array
       | Array<LabeledFaceDescriptors | WithFaceDescriptor<any> | Float32Array>,
-    similarityThreshold: number = 0.6,
+    similarityThreshold: number = 0.94,
   ) {
     this._similarityThreshold = similarityThreshold;
 
