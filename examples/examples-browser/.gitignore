@@ -1,0 +1,3 @@
+# lockfiles are not tracked in the examples (upstream decision, see commit cfb7723)
+node_modules
+package-lock.json
