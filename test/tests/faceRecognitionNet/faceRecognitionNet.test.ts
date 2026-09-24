@@ -46,9 +46,6 @@ describeWithBackend("faceRecognitionNet", () => {
     "quantized weights",
     { withFaceRecognitionNet: { quantized: true } },
     ({ faceRecognitionNet }) => {
-      /* The reference descriptors were produced by the same network on the same inputs, so the recomputed descriptors are expected to be 
-      almost identical */
-
       it("computes face descriptor for squared input", async () => {
         const result = (await faceRecognitionNet.computeFaceDescriptor(
           imgEl1,
@@ -290,4 +287,3 @@ describeWithBackend("faceRecognitionNet", () => {
     },
   );
 });
-
