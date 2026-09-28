@@ -21,6 +21,5 @@ export * from "./tinyFaceDetector/index";
 export * from "./tinyYolov2/index";
 
 export * from "./cosineSimilarity";
-export * from "./euclideanDistance";
 export * from "./NeuralNetwork";
 export * from "./resizeResults";

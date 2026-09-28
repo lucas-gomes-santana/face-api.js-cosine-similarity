@@ -5707,7 +5707,7 @@
   /**
    * Computes a 128 entry vector (face descriptor / face embeddings) from the face shown in an image,
    * which uniquely represents the features of that persons face. The computed face descriptor can
-   * be used to measure the similarity between faces, by computing the euclidean distance of two
+   * be used to measure the similarity between faces, by computing the cosine similarity of two
    * face descriptors.
    *
    * @param inputs The face image extracted from the aligned bounding box of a face. Can
@@ -6324,7 +6324,6 @@
   var allFaces = allFacesSsdMobilenetv1;
 
   function cosineSimilarity(descriptor1, descriptor2) {
-      var _a, _b;
       if (descriptor1.length !== descriptor2.length) {
           throw new Error("Descriptors must have the same length");
       }
@@ -6332,8 +6331,8 @@
       var norm1 = 0.0;
       var norm2 = 0.0;
       for (var i = 0; i < descriptor1.length; i++) {
-          var value1 = (_a = descriptor1[i]) !== null && _a !== void 0 ? _a : 0;
-          var value2 = (_b = descriptor2[i]) !== null && _b !== void 0 ? _b : 0;
+          var value1 = descriptor1[i];
+          var value2 = descriptor2[i];
           dotProduct += value1 * value2;
           norm1 += Math.pow(value1, 2);
           norm2 += Math.pow(value2, 2);
@@ -6343,6 +6342,68 @@
           return 0;
       }
       return dotProduct / magnitude;
+  }
+  /**
+   * Computes the cosine similarity of a single query descriptor against a batch
+   * of descriptors, in one matrix-vector multiplication.
+   *
+   * This is the vectorized counterpart of calling cosineSimilarity in a loop.
+   * Because the cosine similarity is a dot product of unit vectors, normalizing
+   * both sides once up front collapses the whole batch into a single matmul,
+   * which runs as one native BLAS call instead of one interpreted loop per
+   * descriptor. The values returned are identical to the ones cosineSimilarity
+   * would produce for each pair.
+   *
+   * @param query The face descriptor to compare against.
+   * @param descriptors The face descriptors to compare with. Every descriptor
+   * must have the same length as query. May be empty.
+   * @returns The cosine similarity of query against each descriptor, in the same
+   * order they were passed in.
+   */
+  function cosineSimilarityBatch(query, descriptors) {
+      return __awaiter(this, void 0, void 0, function () {
+          var dimensions, i, similarities, _a, _b;
+          return __generator(this, function (_c) {
+              switch (_c.label) {
+                  case 0:
+                      if (!descriptors.length) {
+                          return [2 /*return*/, []];
+                      }
+                      dimensions = query.length;
+                      for (i = 0; i < descriptors.length; i++) {
+                          if (descriptors[i].length !== dimensions) {
+                              throw new Error("cosineSimilarityBatch: descriptors[" + i + "].length (" + descriptors[i].length + ") !== query.length (" + dimensions + ")");
+                          }
+                      }
+                      similarities = Ze(function () {
+                          var matrix = Bn(descriptors, [
+                              descriptors.length,
+                              dimensions,
+                          ]);
+                          var queryTensor = Mn(query);
+                          // reducing every row and the query to unit length turns the cosine
+                          // similarity into a plain dot product per row
+                          var normalizedMatrix = matrix.div(matrix.norm("euclidean", 1).reshape([-1, 1]));
+                          var normalizedQuery = queryTensor.div(queryTensor.norm("euclidean"));
+                          var dots = normalizedMatrix.dot(normalizedQuery);
+                          // a descriptor with a magnitude of 0 has no direction, so normalizing it
+                          // divides by zero and yields NaN or Inf. cosineSimilarity returns 0 for the
+                          // same input, so those entries are clamped to keep both APIs consistent
+                          return ec(Du(dots), dots, Xn(dots));
+                      });
+                      _c.label = 1;
+                  case 1:
+                      _c.trys.push([1, , 3, 4]);
+                      _b = (_a = Array).from;
+                      return [4 /*yield*/, similarities.data()];
+                  case 2: return [2 /*return*/, _b.apply(_a, [(_c.sent())])];
+                  case 3:
+                      similarities.dispose();
+                      return [7 /*endfinally*/];
+                  case 4: return [2 /*return*/];
+              }
+          });
+      });
   }
 
   var FaceMatcher = /** @class */ (function () {
@@ -6433,16 +6494,6 @@
       return net;
   }
 
-  function euclideanDistance(arr1, arr2) {
-      if (arr1.length !== arr2.length)
-          throw new Error('euclideanDistance: arr1.length !== arr2.length');
-      var desc1 = Array.from(arr1);
-      var desc2 = Array.from(arr2);
-      return Math.sqrt(desc1
-          .map(function (val, i) { return val - desc2[i]; })
-          .reduce(function (res, diff) { return res + Math.pow(diff, 2); }, 0));
-  }
-
   function resizeResults(results, dimensions) {
       var _a = new Dimensions(dimensions.width, dimensions.height), width = _a.width, height = _a.height;
       if (width <= 0 || height <= 0) {
@@ -6517,6 +6568,7 @@
   exports.bufferToImage = bufferToImage;
   exports.computeFaceDescriptor = computeFaceDescriptor;
   exports.cosineSimilarity = cosineSimilarity;
+  exports.cosineSimilarityBatch = cosineSimilarityBatch;
   exports.createCanvas = createCanvas;
   exports.createCanvasFromMedia = createCanvasFromMedia;
   exports.createFaceDetectionNet = createFaceDetectionNet;
@@ -6532,7 +6584,6 @@
   exports.detectSingleFace = detectSingleFace;
   exports.draw = index;
   exports.env = env;
-  exports.euclideanDistance = euclideanDistance;
   exports.extendWithAge = extendWithAge;
   exports.extendWithFaceDescriptor = extendWithFaceDescriptor;
   exports.extendWithFaceDetection = extendWithFaceDetection;
