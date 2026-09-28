@@ -20,7 +20,7 @@ export * from "./ssdMobilenetv1/index";
 export * from "./tinyFaceDetector/index";
 export * from "./tinyYolov2/index";
 
-export { cosineSimilarity } from "./cosineSimilarity";
+export * from "./cosineSimilarity";
 export * from "./euclideanDistance";
 export * from "./NeuralNetwork";
 export * from "./resizeResults";

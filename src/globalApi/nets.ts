@@ -97,7 +97,7 @@ export const detectFaceLandmarksTiny = (input: TNetInput): Promise<FaceLandmarks
 /**
  * Computes a 128 entry vector (face descriptor / face embeddings) from the face shown in an image,
  * which uniquely represents the features of that persons face. The computed face descriptor can
- * be used to measure the similarity between faces, by computing the euclidean distance of two
+ * be used to measure the similarity between faces, by computing the cosine similarity of two
  * face descriptors.
  *
  * @param inputs The face image extracted from the aligned bounding box of a face. Can
