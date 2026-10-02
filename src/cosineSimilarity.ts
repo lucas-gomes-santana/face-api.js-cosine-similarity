@@ -1,5 +1,21 @@
 import * as tf from "@tensorflow/tfjs-core";
 
+/**
+ * Guards against dividing by zero, which would turn a descriptor without
+ * direction into NaN instead of the zero vector it normalizes to.
+ */
+const MIN_NORM = 1e-12;
+
+/**
+ * Computes the cosine similarity of two face descriptors, which is scale
+ * invariant: descriptors pointing in the same direction score 1.0 regardless
+ * of their magnitude. A descriptor of magnitude 0 has no direction and is
+ * reported as 0.0.
+ *
+ * @param descriptor1 The first face descriptor.
+ * @param descriptor2 The second face descriptor. Must have the same length.
+ * @returns The similarity of both descriptors, from -1.0 to 1.0.
+ */
 export function cosineSimilarity(
   descriptor1: number[] | Float32Array,
   descriptor2: number[] | Float32Array,
@@ -30,21 +46,15 @@ export function cosineSimilarity(
 }
 
 /**
- * Computes the cosine similarity of a single query descriptor against a batch
- * of descriptors, in one matrix-vector multiplication.
- *
- * This is the vectorized counterpart of calling cosineSimilarity in a loop.
- * Because the cosine similarity is a dot product of unit vectors, normalizing
- * both sides once up front collapses the whole batch into a single matmul,
- * which runs as one native BLAS call instead of one interpreted loop per
- * descriptor. The values returned are identical to the ones cosineSimilarity
- * would produce for each pair.
+ * Computes the cosine similarity of one query descriptor against a batch of
+ * descriptors. Normalizing both sides up front turns every comparison into a
+ * dot product, so the whole batch resolves in a single matmul rather than one
+ * loop per descriptor. Returns the same values cosineSimilarity would.
  *
  * @param query The face descriptor to compare against.
- * @param descriptors The face descriptors to compare with. Every descriptor
- * must have the same length as query. May be empty.
- * @returns The cosine similarity of query against each descriptor, in the same
- * order they were passed in.
+ * @param descriptors The face descriptors to compare with, all of the same
+ * length as query.
+ * @returns The similarity of query against each descriptor, in order.
  */
 export async function cosineSimilarityBatch(
   query: number[] | Float32Array,
@@ -64,8 +74,6 @@ export async function cosineSimilarityBatch(
     }
   }
 
-  // tf.tidy has to be exited synchronously, so the result tensor is kept and
-  // disposed once its data has been read below
   const similarities = tf.tidy(() => {
     const matrix = tf.tensor2d(descriptors as number[][], [
       descriptors.length,
@@ -73,19 +81,19 @@ export async function cosineSimilarityBatch(
     ]);
     const queryTensor = tf.tensor1d(query as number[]);
 
-    // reducing every row and the query to unit length turns the cosine
-    // similarity into a plain dot product per row
-    const normalizedMatrix = matrix.div(
-      matrix.norm("euclidean", 1).reshape([-1, 1]),
-    );
-    const normalizedQuery = queryTensor.div(queryTensor.norm("euclidean"));
+    const rowNorms = tf.maximum(
+      matrix.norm("euclidean", 1),
+      MIN_NORM,
+    ) as tf.Tensor1D;
+    const queryNorm = tf.maximum(
+      queryTensor.norm("euclidean"),
+      MIN_NORM,
+    ) as tf.Tensor;
 
-    const dots = normalizedMatrix.dot(normalizedQuery) as tf.Tensor1D;
+    const normalizedMatrix = matrix.div(rowNorms.reshape([-1, 1]));
+    const normalizedQuery = queryTensor.div(queryNorm);
 
-    // a descriptor with a magnitude of 0 has no direction, so normalizing it
-    // divides by zero and yields NaN or Inf. cosineSimilarity returns 0 for the
-    // same input, so those entries are clamped to keep both APIs consistent
-    return tf.where(tf.isFinite(dots), dots, tf.zerosLike(dots)) as tf.Tensor1D;
+    return normalizedMatrix.dot(normalizedQuery) as tf.Tensor1D;
   });
 
   try {

@@ -64,10 +64,15 @@ describe("cosineSimilarityBatch", () => {
     ).toBeRejectedWithError(/descriptors\[1\]\.length \(3\)/);
   });
 
+  // the batch runs through float32 tensors while cosineSimilarity runs in
+  // double precision, so the batch results are compared with a tolerance
   it("should be 1.0 for a single identical descriptor", async () => {
     const descriptor = buildDescriptor((i) => Math.sin(i));
 
-    expect(await cosineSimilarityBatch(descriptor, [descriptor])).toEqual([1]);
+    const result = await cosineSimilarityBatch(descriptor, [descriptor]);
+
+    expect(result.length).toBe(1);
+    expect(result[0]).toBeCloseTo(1, 5);
   });
 
   it("should be scale invariant, like cosineSimilarity", async () => {
@@ -131,9 +136,9 @@ describe("cosineSimilarityBatch", () => {
 
     const result = await cosineSimilarityBatch(descriptor, [zero, descriptor]);
 
-    expect(result[0]).toBe(0);
-    expect(result[0]).toBe(cosineSimilarity(descriptor, zero));
-    expect(result[1]).toBeCloseTo(1, 6);
+    expect(result[0]).toBeCloseTo(0, 5);
+    expect(result[0]).toBeCloseTo(cosineSimilarity(descriptor, zero), 5);
+    expect(result[1]).toBeCloseTo(1, 5);
   });
 
   it("should return all 0.0 if the query has magnitude 0", async () => {
@@ -145,20 +150,25 @@ describe("cosineSimilarityBatch", () => {
 
     const result = await cosineSimilarityBatch(query, descriptors);
 
-    result.forEach((similarity) => {
-      expect(similarity).toBe(0);
-      expect(similarity).toBe(cosineSimilarity(query, descriptors[0]));
+    result.forEach((similarity, i) => {
+      expect(similarity).toBeCloseTo(0, 5);
+      expect(similarity).toBeCloseTo(cosineSimilarity(query, descriptors[i]), 5);
     });
   });
 
   it("should never return NaN or Infinity", async () => {
     const descriptor = buildDescriptor((i) => Math.sin(i));
+
+    // both degenerate directions: a zero descriptor and a zero query
     const result = await cosineSimilarityBatch(descriptor, [
       new Array(D).fill(0),
       descriptor,
     ]);
+    const fromZeroQuery = await cosineSimilarityBatch(new Array(D).fill(0), [
+      descriptor,
+    ]);
 
-    result.forEach((similarity) => {
+    result.concat(fromZeroQuery).forEach((similarity) => {
       expect(isFinite(similarity)).toBe(true);
     });
   });
