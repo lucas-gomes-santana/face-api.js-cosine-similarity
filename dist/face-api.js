@@ -6323,6 +6323,21 @@
   }
   var allFaces = allFacesSsdMobilenetv1;
 
+  /**
+   * Guards against dividing by zero, which would turn a descriptor without
+   * direction into NaN instead of the zero vector it normalizes to.
+   */
+  var MIN_NORM = 1e-12;
+  /**
+   * Computes the cosine similarity of two face descriptors, which is scale
+   * invariant: descriptors pointing in the same direction score 1.0 regardless
+   * of their magnitude. A descriptor of magnitude 0 has no direction and is
+   * reported as 0.0.
+   *
+   * @param descriptor1 The first face descriptor.
+   * @param descriptor2 The second face descriptor. Must have the same length.
+   * @returns The similarity of both descriptors, from -1.0 to 1.0.
+   */
   function cosineSimilarity(descriptor1, descriptor2) {
       if (descriptor1.length !== descriptor2.length) {
           throw new Error("Descriptors must have the same length");
@@ -6344,21 +6359,15 @@
       return dotProduct / magnitude;
   }
   /**
-   * Computes the cosine similarity of a single query descriptor against a batch
-   * of descriptors, in one matrix-vector multiplication.
-   *
-   * This is the vectorized counterpart of calling cosineSimilarity in a loop.
-   * Because the cosine similarity is a dot product of unit vectors, normalizing
-   * both sides once up front collapses the whole batch into a single matmul,
-   * which runs as one native BLAS call instead of one interpreted loop per
-   * descriptor. The values returned are identical to the ones cosineSimilarity
-   * would produce for each pair.
+   * Computes the cosine similarity of one query descriptor against a batch of
+   * descriptors. Normalizing both sides up front turns every comparison into a
+   * dot product, so the whole batch resolves in a single matmul rather than one
+   * loop per descriptor. Returns the same values cosineSimilarity would.
    *
    * @param query The face descriptor to compare against.
-   * @param descriptors The face descriptors to compare with. Every descriptor
-   * must have the same length as query. May be empty.
-   * @returns The cosine similarity of query against each descriptor, in the same
-   * order they were passed in.
+   * @param descriptors The face descriptors to compare with, all of the same
+   * length as query.
+   * @returns The similarity of query against each descriptor, in order.
    */
   function cosineSimilarityBatch(query, descriptors) {
       return __awaiter(this, void 0, void 0, function () {
@@ -6381,15 +6390,11 @@
                               dimensions,
                           ]);
                           var queryTensor = Mn(query);
-                          // reducing every row and the query to unit length turns the cosine
-                          // similarity into a plain dot product per row
-                          var normalizedMatrix = matrix.div(matrix.norm("euclidean", 1).reshape([-1, 1]));
-                          var normalizedQuery = queryTensor.div(queryTensor.norm("euclidean"));
-                          var dots = normalizedMatrix.dot(normalizedQuery);
-                          // a descriptor with a magnitude of 0 has no direction, so normalizing it
-                          // divides by zero and yields NaN or Inf. cosineSimilarity returns 0 for the
-                          // same input, so those entries are clamped to keep both APIs consistent
-                          return ec(Du(dots), dots, Xn(dots));
+                          var rowNorms = hc(matrix.norm("euclidean", 1), MIN_NORM);
+                          var queryNorm = hc(queryTensor.norm("euclidean"), MIN_NORM);
+                          var normalizedMatrix = matrix.div(rowNorms.reshape([-1, 1]));
+                          var normalizedQuery = queryTensor.div(queryNorm);
+                          return normalizedMatrix.dot(normalizedQuery);
                       });
                       _c.label = 1;
                   case 1:
