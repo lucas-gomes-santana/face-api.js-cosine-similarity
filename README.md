@@ -706,12 +706,22 @@ const regionsToExtract = [
 const canvases = await faceapi.extractFaces(input, regionsToExtract)
 ```
 
-### Euclidean Distance
+### Cosine Similarity
 
 ``` javascript
-// ment to be used for computing the euclidean distance between two face descriptors
-const dist = faceapi.euclideanDistance([0, 0], [0, 10])
-console.log(dist) // 10
+// meant to be used for computing the cosine similarity between two face descriptors
+const similarity = faceapi.cosineSimilarity([0, 10], [0, 10])
+console.log(similarity) // 1
+```
+
+To compare one query descriptor against a batch of descriptors, use **cosineSimilarityBatch**. It returns the similarity of the query descriptor against each descriptor in the batch:
+
+``` javascript
+const similarities = await faceapi.cosineSimilarityBatch(
+  queryDescriptor,
+  [descriptor1, descriptor2]
+)
+console.log(similarities) // similarity of queryDescriptor against each descriptor
 ```
 
 ### Retrieve the Face Landmark Points and Contours
@@ -812,7 +822,7 @@ This package implements a very lightweight and fast, yet accurate 68 point face 
 
 ## Face Recognition Model
 
-For face recognition, a ResNet-34 like architecture is implemented to compute a face descriptor (a feature vector with 128 values) from any given face image, which is used to describe the characteristics of a persons face. The model is **not** limited to the set of faces used for training, meaning you can use it for face recognition of any person, for example yourself. You can determine the similarity of two arbitrary faces by comparing their face descriptors, for example by computing the euclidean distance or using any other classifier of your choice.
+For face recognition, a ResNet-34 like architecture is implemented to compute a face descriptor (a feature vector with 128 values) from any given face image, which is used to describe the characteristics of a persons face. The model is **not** limited to the set of faces used for training, meaning you can use it for face recognition of any person, for example yourself. You can determine the similarity of two arbitrary faces by comparing their face descriptors, for example by computing the cosine similarity or using any other classifier of your choice.
 
 The neural net is equivalent to the **FaceRecognizerNet** used in [face-recognition.js](https://github.com/justadudewhohacks/face-recognition.js) and the net used in the [dlib](https://github.com/davisking/dlib/blob/master/examples/dnn_face_recognition_ex.cpp) face recognition example. The weights have been trained by [davisking](https://github.com/davisking) and the model achieves a prediction accuracy of 99.38% on the LFW (Labeled Faces in the Wild) benchmark for face recognition.
 
